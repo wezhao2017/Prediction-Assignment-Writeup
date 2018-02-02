@@ -1,0 +1,139 @@
+---
+title: "Practical Machine Learning Project: Prediction Assignment Writeup"
+author: "wezhao2017"
+date: "1-30-2018"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This project is a Practical Machine Learning course assignment. The goal is to predict the manner in which they practice the exercise and set the variable of classification in the training. We will use the data from accelerometers of six participants such as the belt, forearm, arm, and dumbell. This report describes how we built our model, how we used cross validation, what we think the expected out of sample error is, and why we made the choices we did. We will also use our prediction model to predict 20 different test cases. More information is avaliable from the website at: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+
+## Loading the data
+
+loading the packages needed and getting the training data and testing data from the URLs given.
+
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(gbm)
+library(randomForest)
+
+set.seed(11111)
+TrainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+TestUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(TrainUrl,na.strings = c("NA", ""))
+testing <- read.csv(TestUrl,na.strings = c("NA", ""))
+```
+
+## Cleaning the data
+
+Deleting columns of the raw data that contain any missing values, and removing the invalid variables.
+
+```{r}
+training <- training [, colSums(is.na(training))==0]
+testing <- testing [, colSums(is.na(testing))==0]
+
+classe <-training$classe
+trainingremove <- grepl("^X|timestamp|window",names(training))
+training <- training [, !trainingremove]
+trainclean <- training [, sapply(training, is.numeric)]
+trainclean$classe <- classe
+
+testingremove <- grepl("^X|timestamp|window",names(testing))
+testing <- testing [, !testingremove]
+testclean <- testing [, sapply(testing, is.numeric)]
+```
+
+## Splitting the data
+
+Seleting the train data(mytrain, 60%) from cleaned data, and a validation set (mytest) to test the out-of-sample errors.
+
+```{r}
+inTrain <- createDataPartition(trainclean$classe, p= .6, list = FALSE, times = 1)
+mytrain <- trainclean[inTrain,]
+mytest <- trainclean[-inTrain,]
+
+dim(mytrain)
+dim(mytest)
+```
+
+## Prediction with Grandient Boosting Method
+
+Using grandient boosting method to predict the outcome.
+
+```{r}
+set.seed(11111)
+controlgbm<- trainControl(method = "cv", 5)
+modelgbm <- train(classe~., data=mytrain, method = "gbm", trControl = controlgbm, verbose = FALSE)
+modelgbm
+plot(modelgbm)
+
+predictiongbm <- predict(modelgbm, mytest)
+confusionMatrix(predictiongbm,mytest$classe)
+
+errorout <- 1 - as.numeric(confusionMatrix(predictiongbm,mytest$classe)$overall[1])
+errorout
+```
+
+The estimated accuracy of model is 96.35%, and the estimated out-of-sample error is 3.65%.  
+
+
+## Prediction with Random Forests
+
+Using random forests to predict the outcome.
+
+```{r}
+set.seed(11111)
+controlrF<- trainControl(method = "cv", 5)
+modelrF <- train(classe~., data=mytrain, method = "rf", trControl = controlrF, ntree = 250)
+modelrF
+
+predictionrF <- predict(modelrF, mytest)
+confusionMatrix(predictionrF,mytest$classe)
+
+errorout <- 1 - as.numeric(confusionMatrix(predictionrF,mytest$classe)$overall[1])
+errorout
+```
+
+The estimated accuracy of model is 99.02%, and the estimated out-of-sample error is 0.98%.  
+
+## Predicting on test set
+
+From the above datasets shows that the random forest model is better than the other one. We choose it to predict the values for the test data set.
+
+```{r}
+outcome <- predict(modelrF, testclean [, -length(names(testclean))])
+outcome
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
